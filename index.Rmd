@@ -1,0 +1,14 @@
+---
+title: "Xiao Ma"
+---
+
+<div style= "float : left; position : relative; top: 0px; width : 450px; height : 360px; padding-right: 24px; margin-bottom : 0px">
+![](./photo/Xiao.jpg)
+
+</div>
+
+<font size = "4"> 
+This is the professional website of biostatistician Xiao Ma, a second year Master student at UMN. Born January 23$^{st}$, 1997, in the mainland China.
+</font>   
+</font> 
+

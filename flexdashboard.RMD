@@ -1,0 +1,220 @@
+---
+title: "Flexdashboard"
+author: "Xiao Ma"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(DataExplorer)
+library(tidyverse)
+library(scales)
+library(ggplot2)
+library(ggrepel)
+library(paletteer)
+library(tidyverse)
+library(lubridate)
+library(ggridges)
+library(plotly)
+library(gtExtras)
+library(sf)
+library(ggmap)
+library(tidycensus)
+library(leaflet)
+library(osmdata)
+library(tigris)
+
+#Working directory for .RMD
+knitr::opts_knit$set(echo = TRUE,
+                     root.dir = rprojroot::find_rstudio_root_file())
+
+#Controlling figure output in markdown
+knitr::opts_chunk$set(
+#  fig.height =   
+  fig.width = 6,
+#  fig.asp = .5,
+  out.width = "90%",
+#  out.height = 
+ fig.align  = "center",
+  cache = FALSE,
+  eval  = TRUE,
+  echo  = TRUE,
+  warning = FALSE
+)
+
+#My Colours (from viridis)
+my_purple <- "#440154FF"
+my_yellow <- "#FDE725FF"
+
+#Set Theme for ggplot2
+theme_set(theme_bw() + theme(plot.title = element_text(hjust = 0.5), legend.position = "bottom"))
+
+#Set Scientific notation output and decimal places for knitr
+options(scipen = 999)
+options(digits = 4)
+options(dplyr.summarise.inform = FALSE)
+```
+
+Column {data-width=450}
+-----------------------------------------------------------------------
+
+### Number of observed locations in each state
+
+```{r message=FALSE, warning=FALSE,echo=FALSE}
+BRFSS <- read.csv("./data/brfss_smart_2010.csv", stringsAsFactors=TRUE)
+#names(BRFSS)
+brfss2 <- BRFSS %>%
+  separate(col = Locationdesc, into = c("State","2","County"), sep = " ") %>%
+  mutate(Prop_response=Data_value) %>%
+  filter(Topic=="Overall Health") %>%
+  select(Year,State,County,Response,Sample_Size,Prop_response)
+brfss2$Year<-as.factor(brfss2$Year)
+brfss2$State<-as.factor(brfss2$State)
+brfss2$County<-as.factor(brfss2$County)
+
+brfss3 <- brfss2 %>% #subset the data we need
+  distinct(State, County,Year) %>%
+  group_by(Year,State) %>%
+  summarise(Oberved_location=n()) %>%
+  ungroup(Year,State) %>%
+  mutate(State=fct_reorder(State,Oberved_location,mean,.desc = TRUE)) 
+
+mn_pop.gg<-brfss3 %>%
+  ggplot(aes(x=Year,y=Oberved_location,group=State,color=State)) +  
+  geom_point(color = "grey", size = 0.5) +
+  geom_line(size = 0.3, alpha = 0.8) +
+  geom_line(data =brfss3[brfss3$State=="NJ",], #let the NJ stand out
+            aes(x=Year,y=Oberved_location), 
+            color = "dodgerblue4", size = 0.6) + 
+  geom_label(label="New Jersey", x=2004,y=24.2,label.padding = unit(0.55, "lines"),
+    label.size = 0.35,
+    color = "dodgerblue4",
+    fill="white")+
+  xlab("")+
+  ylab("Observed number")+
+  theme_light()+
+  labs(subtitle = "From 2002 to 2010",
+        caption = "Data from the Behavioral Risk Factors Surveillance System (BRFSS)")
+
+#Plotly
+ggplotly(mn_pop.gg, tooltip = "text") %>%
+  style(hoveron = "fills")
+```
+
+Column {data-width=550}
+-----------------------------------------------------------------------
+
+### Mean and standard deviation of responses
+
+```{r message=FALSE, warning=FALSE,echo=FALSE}
+brfss4 <- brfss2 %>%
+  filter(State=="MN",Year %in% c(2002,2006,2010),Response %in% c("Excellent","Good","Poor")) %>%
+  group_by(Year,Response) %>%
+  summarise(across(c(Sample_Size,Prop_response),  list(mean = mean, sd = sd), na.rm=FALSE, .names = "{.col}.{.fn}"))
+
+brfss5<-brfss4 %>%
+  pivot_longer(cols = c(Sample_Size.mean,Sample_Size.sd,Prop_response.mean,Prop_response.sd),names_to = "Statistics",values_to = "Value") #change the wide data into long
+
+mn_pop.gf<-brfss5 %>%
+  ggplot(aes(x=Year,y=Value,group=Response,color=Response)) +
+  geom_point()+
+  geom_line()+
+  facet_wrap(~Statistics, scales = "free")+
+  xlab("")+
+  ylab("Observed number")+
+  theme_light()+
+  labs(subtitle = "Years of 2002, 2006, 2010",
+        caption = "Data from the Behavioral Risk Factors Surveillance System (BRFSS)")
+
+#Plotly
+ggplotly(mn_pop.gf, tooltip = "text") %>%
+  style(hoveron = "fills")
+```
+
+### Disneyland Branch average Rating by Branch from 2010-2019
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+disney.df <- read_csv("./data/disneyland_reviews.csv",
+                      na = c("missing"),
+                      show_col_types = FALSE) %>%
+             janitor::clean_names() %>%
+             rename(
+               id       = review_id,
+               text     = review_text, #trimming unnecessary review_
+               location = reviewer_location
+             ) %>% 
+             mutate( #Time
+               id    = as.factor(id),
+               date  = lubridate::ym(year_month), #Cleaning up time as date, y/m factors
+               year  = lubridate::year(date) %>% #See the lubridate package
+                       as.factor(),
+               month = month.name[lubridate::month(date)] %>%
+                       as.factor()
+             ) %>%
+             mutate( #Text analysis
+               n_words    = str_split(text, " ") %>% #proxy for number of words
+                            map_dbl(length),
+               avg_length = str_split(text, " ") %>% #proxy for average length
+                            map(str_length) %>% 
+                            map_dbl(mean),
+               n_unique   = str_split(text, " ") %>% #proxy for no. unique words
+                            map(unique) %>%
+                            map_dbl(length),
+               branch     = str_split(branch, "_") %>% #extracting branch w stringr
+                            map_chr(2) %>%
+                            as.factor() %>%
+                            fct_recode("Hong Kong" = "HongKong") %>%
+                            fct_relevel("California", "Paris")
+             ) %>%
+             dplyr::select(id, rating, location, branch, everything(), -c(year_month, text))
+
+mn_pop.gq<-disney.df %>%
+  group_by(branch, date) %>%
+  summarise(
+    avg_rating = mean(rating)
+  ) %>%
+  drop_na() %>%
+  ungroup() %>%
+  mutate(branch = fct_reorder(branch, avg_rating, .desc = TRUE)) %>%
+  ggplot(aes(x = ymd(date), y = avg_rating, colour = branch, fill = branch)) +
+  stat_smooth(alpha   = 0.2, 
+              size    = 1.2, 
+              method  = "loess",
+              formula = "y ~ x",
+              span    = 0.2,
+              se      = FALSE) +
+  geom_point(alpha    = 0.24, 
+             position = "jitter",
+             size     = 2, 
+             shape    = 16) +
+  labs(
+    x = "Year",
+    y = "Average Rating"
+  ) + 
+  annotate(geom = "text",
+           x = ymd("2013-07-1"), 
+           y = 4.66,
+           label  = "Mean Trend",
+           #family = "AvantGarde",
+           colour = my_purple) +
+  scale_colour_viridis_d("Disneyland Branch") +
+  scale_fill_viridis_d("Disneyland Branch") +
+  scale_x_date(
+    date_breaks = "1 year",
+    date_minor_breaks = "1 year",
+    date_labels = "%Y"
+  ) +
+  theme(axis.text.x = element_text(angle = 45,
+                                   vjust = 1.24,
+                                   hjust = 1.2,
+                                   size  = 11),
+        axis.text.y = element_text(size  = 11)) +
+  ylim(c(3, 5))
+
+#Plotly
+ggplotly(mn_pop.gq, tooltip = "text") %>%
+  style(hoveron = "fills")
+```
+

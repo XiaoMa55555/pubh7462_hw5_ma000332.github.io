@@ -99,8 +99,8 @@ mn_pop.gg<-brfss3 %>%
         caption = "Data from the Behavioral Risk Factors Surveillance System (BRFSS)")
 
 #Plotly
-ggplotly(mn_pop.gg, tooltip = "text") %>%
-  style(hoveron = "fills")
+ggplotly(mn_pop.gg) %>%
+  style(hoveron = "points")
 ```
 
 Column {data-width=550}
@@ -119,8 +119,8 @@ brfss5<-brfss4 %>%
 
 mn_pop.gf<-brfss5 %>%
   ggplot(aes(x=Year,y=Value,group=Response,color=Response)) +
-  geom_point()+
   geom_line()+
+  geom_point()+
   facet_wrap(~Statistics, scales = "free")+
   xlab("")+
   ylab("Observed number")+
@@ -129,8 +129,8 @@ mn_pop.gf<-brfss5 %>%
         caption = "Data from the Behavioral Risk Factors Surveillance System (BRFSS)")
 
 #Plotly
-ggplotly(mn_pop.gf, tooltip = "text") %>%
-  style(hoveron = "fills")
+ggplotly(mn_pop.gf)%>%
+  style(hoveron = "points")
 ```
 
 ### Disneyland Branch average Rating by Branch from 2010-2019
@@ -214,7 +214,16 @@ mn_pop.gq<-disney.df %>%
   ylim(c(3, 5))
 
 #Plotly
-ggplotly(mn_pop.gq, tooltip = "text") %>%
-  style(hoveron = "fills")
+ggplotly(mn_pop.gq, tooltip = c("branch", "avg_rating")) %>%
+  style(hoveron = "points")
+```
+
+
+```{r}
+library(ggplot2)
+Book1  %>%
+  ggplot(aes(x=x,y=y,group=g)) +
+  geom_point()+
+  geom_line()
 ```
 

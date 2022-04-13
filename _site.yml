@@ -14,6 +14,8 @@ navbar:
       menu:
          - text: "flexdashboard"
            href: flexdashboard.html
+         - text: "Spatial Dashboard"
+           href: 74620413.html
     - text: "About"
       href: about.html
     - icon: fa-envelope fa-lg
